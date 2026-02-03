@@ -1,6 +1,7 @@
 #include <stdlib.h>
 
 #include "core/bitmap.c"
+#include "core/line_tree.c"
 #include "os_backend_sdl2.c"
 #include "font_backend_freetype.c"
 #include "render_backend_software.c"
@@ -98,9 +99,77 @@ bool cursor_move_down(Cursor *cursor, TextBuffer text) {
 	return true;
 }
 
-int main(void) {
+static void load_line_tree_from_file(LineTree *tree, char *path) {
+  OsFile file = os_read_file(path);
+  char *scan = (char *)file.data;
+  u32 offset = 0;
+  while(*scan) {
+    if(*scan == '\n') {
+      line_tree_insert(tree, offset);
+    }
+    scan++;
+    offset++;
+  }
+  free(file.data);
+}
+
+int main_(void) {
+
+  OsWindowDef window_def = {0};
+	window_def.name   = "babl";
+	window_def.width  = WINDOW_WIDTH;
+	window_def.height = WINDOW_HEIGHT;
+	window_def.flags  = 0;
 	
-	OsWindowDef window_def = {0};
+	os_init(window_def, 60);
+	font_init();
+	render_init();
+
+	RenderFont font = render_font_create(
+			"/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf", 15);
+  
+  LineTree tree;
+  load_line_tree_from_file(&tree, "./test.txt");
+  
+	u32 bg = 0x000000;
+
+	bool running = true;
+	while(running) {
+		os_frame_begin();
+
+		OsEvent event;
+  	while (os_event_poll(&event)) {
+			switch(event.type) {
+				case OS_EVENT_QUIT: {
+					running = false;
+				} break;
+				case OS_EVENT_WINDOW_RESIZE: {
+					render_resize(event.window.width, event.window.height);
+				} break;
+				default: {} break;
+			}
+  	}
+
+		render_clear(bg);
+
+    line_tree_draw(300, 50, font, &tree);
+
+		render_flush();
+		os_frame_end();
+	}
+
+	render_font_destroy(font);
+	
+  render_shutdown();
+	font_shutdown();
+	os_shutdown();
+
+  return 0;
+}
+
+int main(void) {
+
+  OsWindowDef window_def = {0};
 	window_def.name   = "babl";
 	window_def.width  = WINDOW_WIDTH;
 	window_def.height = WINDOW_HEIGHT;
@@ -122,6 +191,8 @@ int main(void) {
 	Cursor cursor;
 	TextBuffer text = text_buffer_create();
 
+  LineTree tree;
+
 	bool running = true;
 	while(running) {
 		os_frame_begin();
@@ -140,6 +211,7 @@ int main(void) {
 						u64 index = cursor_get_index(&cursor, text);
 						text_buffer_insert(text, index, (u32)event.text.data[i]);
 						cursor_move_right(&cursor, text);
+            line_tree_propagate_change_at_byte(&tree, index, 1);
 					}
 				} break;
 				case OS_EVENT_KEYDOWN: {
@@ -147,6 +219,7 @@ int main(void) {
 						u64 index = cursor_get_index(&cursor, text);
 						text_buffer_insert(text, index, (u32)'\n');
 						cursor_move_right(&cursor, text);
+            line_tree_insert(&tree, index);
 					}	
 					if(event.key.code == OS_KEY_BACKSPACE) {
 						if(cursor_move_left(&cursor, text)) {
@@ -179,6 +252,8 @@ int main(void) {
   	}
 
 		render_clear(bg);
+
+    line_tree_draw(600, 50, font, &tree);
 		
 		int x = 10;
 		int y = lh;

@@ -15,6 +15,8 @@ typedef int32_t s32;
 typedef int16_t s16;
 typedef int8_t  s8;
 
+typedef float f32;
+
 #define array_len(array) (sizeof(array)/sizeof(array[0]))
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))

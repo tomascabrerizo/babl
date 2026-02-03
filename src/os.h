@@ -70,6 +70,12 @@ struct OsWindowDef {
 	u32 flags;
 };
 
+typedef struct OsFile OsFile;
+struct OsFile {
+  u8 *data;
+  u64 size;
+};
+
 void os_init(OsWindowDef window_def, u32 fps);
 void os_shutdown(void);
 
@@ -88,6 +94,8 @@ void os_frame_end(void);
 OsSurface os_surface_create(u32 *pixels, u32 width, u32 height);
 void os_surface_destroy(OsSurface surface);
 void os_surface_blit(OsSurface dst, OsSurface src);
+
+OsFile os_read_file(char *path);
 
 
 #endif // _OS_H_

@@ -234,3 +234,29 @@ void render_rect(s32 x, s32 y, s32 width, s32 height, u32 color) {
 	}
 
 }
+
+void render_line(s32 x0, s32 y0, s32 x1, s32 y1, u32 color) {
+  BitmapU32 *dst = &g_render_soft.backbuffer;
+  
+  s32 dx = abs(x1 - x0);
+  s32 sx = x0 < x1 ? 1 : -1;
+  s32 dy = -abs(y1 - y0);
+  s32 sy = y0 < y1 ? 1 : -1;
+  s32 err = dx + dy;
+  
+  while (1) {
+    if (x0 >= 0 && x0 < dst->width && y0 >= 0 && y0 < dst->height) {
+      dst->buffer[y0 * dst->width + x0] = color;
+    }
+    if (x0 == x1 && y0 == y1) break;
+      s32 e2 = 2 * err;
+    if (e2 >= dy) {
+      err += dy;
+      x0 += sx;
+    }
+    if (e2 <= dx) {
+      err += dx;
+      y0 += sy;
+    }
+  }
+}

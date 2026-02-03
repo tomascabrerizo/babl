@@ -1,5 +1,7 @@
 #include <SDL2/SDL.h>
 
+#include <stdio.h>
+
 #include "string.h"
 #include "os.h"
 
@@ -170,4 +172,25 @@ void os_surface_destroy(OsSurface surface) {
 
 void os_surface_blit(OsSurface dst, OsSurface src) {
 	SDL_BlitSurface((SDL_Surface *)src, 0, (SDL_Surface *)dst, 0);
+}
+
+OsFile os_read_file(char *path) {
+    OsFile resutl;
+    
+    FILE *file = fopen(path, "rb");
+    assert(file);
+
+    fseek(file, 0, SEEK_END);
+    u32 size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    resutl.data = (u8 *)malloc(size + 1);
+    resutl.size = size;
+
+    fread(resutl.data, resutl.size, 1, file);
+    resutl.data[resutl.size] = '\0';
+
+    fclose(file);
+
+    return resutl;
 }

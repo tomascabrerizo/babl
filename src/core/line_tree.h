@@ -11,7 +11,7 @@ struct LineNode {
 	LineNode *r;
 	LineNode *p;
 
-	u64 total_bytes;
+	u64 byte_offset;
 	u32 total_lines;
 };
 

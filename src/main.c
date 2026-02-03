@@ -211,7 +211,7 @@ int main(void) {
 						u64 index = cursor_get_index(&cursor, text);
 						text_buffer_insert(text, index, (u32)event.text.data[i]);
 						cursor_move_right(&cursor, text);
-            line_tree_propagate_change_at_byte(&tree, index, 1);
+            line_tree_propagate_increment_at_byte(&tree, index, 1);
 					}
 				} break;
 				case OS_EVENT_KEYDOWN: {
@@ -225,6 +225,7 @@ int main(void) {
 						if(cursor_move_left(&cursor, text)) {
 							u64 index = cursor_get_index(&cursor, text);
 							text_buffer_delete(text, index);
+              line_tree_propagate_decrement_at_byte(&tree, index, 1);
 						}
 					}	
 					if(event.key.code == OS_KEY_RIGHT) {
@@ -245,6 +246,7 @@ int main(void) {
 						text_buffer_insert(text, index+1, (u32)' ');
 						cursor_move_right(&cursor, text);
 						cursor_move_right(&cursor, text);
+            line_tree_propagate_increment_at_byte(&tree, index, 2);
 					}	
 				} break;
 				default: {} break;

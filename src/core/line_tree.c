@@ -5,11 +5,21 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void propagate_change(LineNode *node, s64 delta_bytes, s32 delta_lines) {
+static void propagate_increment(LineNode *node, u64 bytes, u32 lines) {
   while(node->p != 0) {
     if(node == node->p->l) {
-      node->p->total_bytes += delta_bytes;
-      node->p->total_lines += delta_lines;
+      node->p->byte_offset += bytes;
+      node->p->total_lines += lines;
+    }
+    node = node->p;
+  } 
+}
+
+static void propagate_decrement(LineNode *node, u64 bytes, u32 lines) {
+  while(node->p != 0) {
+    if(node == node->p->l) {
+      node->p->byte_offset -= bytes;
+      node->p->total_lines -= lines;
     }
     node = node->p;
   } 
@@ -29,8 +39,8 @@ void line_tree_insert(LineTree *tree, u64 byte_offset) {
     parent = current;
     last_byte_offset = byte_offset;
     
-    if(byte_offset > current->total_bytes) {
-      byte_offset -= current->total_bytes;
+    if(byte_offset > current->byte_offset) {
+      byte_offset -= current->byte_offset;
       current = current->r;
     } else {
       current = current->l;
@@ -38,19 +48,19 @@ void line_tree_insert(LineTree *tree, u64 byte_offset) {
   }
   
   node->p = parent;
-  node->total_bytes = byte_offset;
+  node->byte_offset = byte_offset;
   node->total_lines = 1;
 
   if(parent == 0) {
     tree->root = node;
   } else { 
-    if (last_byte_offset > parent->total_bytes) {
+    if (last_byte_offset > parent->byte_offset) {
       parent->r = node;
     } else  {
       parent->l = node;
     }
     
-    propagate_change(node, 1, 1);
+    propagate_increment(node, 1, 1);
   }
 
 }
@@ -69,6 +79,61 @@ LineNode *line_tree_next_line(LineNode *line) {
 
 LineNode *line_tree_prev_line(LineNode *line) {
   return 0;
+}
+
+LineNode *find_offset_parent_node(LineTree *tree, u64 *byte_offset) {
+  assert(byte_offset);
+
+  u64 last_byte_offset = 0; 
+  u64 current_byte_offset = *byte_offset;
+  
+  LineNode *parent = 0;
+  LineNode *current = tree->root;
+
+  while(current != 0) {
+    last_byte_offset = current_byte_offset;
+    parent = current;
+    if(current_byte_offset > current->byte_offset) {
+      current_byte_offset -= current->byte_offset;
+      current = current->r;
+    } else {
+      current = current->l;
+    }
+  }
+  
+  *byte_offset = last_byte_offset;
+
+  return parent;
+}
+
+void line_tree_propagate_increment_at_byte(LineTree *tree, u64 byte_offset, u64 value) {
+  bool left;
+  LineNode *parent = find_offset_parent_node(tree, &byte_offset);
+  
+  if(!parent) {
+    return;
+  }
+  
+  if (byte_offset <= parent->byte_offset) {
+    parent->byte_offset += value;
+  }
+  
+  propagate_increment(parent, value, 0);
+}
+
+void line_tree_propagate_decrement_at_byte(LineTree *tree, u64 byte_offset, u64 value) {
+  bool left;
+  LineNode *parent = find_offset_parent_node(tree, &byte_offset);
+  
+  if(!parent) {
+    return;
+  }
+  
+  if (byte_offset <= parent->byte_offset) {
+    parent->byte_offset -= value;
+  }
+  
+  propagate_decrement(parent, value, 0);
 }
 
 static u32 line_tree_node_height(LineNode *node) {
@@ -99,7 +164,7 @@ static void line_tree_node_draw(struct RenderFont *font, s32 x, s32 y,
 
   render_rect(x-half, y-half, dim, dim, 0xff0000);
   static char text[1024];
-  sprintf(text, "%lu|%d", node->total_bytes, node->total_lines);
+  sprintf(text, "%lu|%d", node->byte_offset , node->total_lines);
   render_text(font, text, x-half, y, 0xffffff, 0xff0000);
   
   line_tree_node_draw(font, x-offset_x, y+offset_y, node->l, max_height, depth+1);
@@ -109,45 +174,4 @@ static void line_tree_node_draw(struct RenderFont *font, s32 x, s32 y,
 void line_tree_draw(s32 x, s32 y, struct RenderFont *font, LineTree *tree) {
   u32 max_height = line_tree_node_height(tree->root);
   line_tree_node_draw(font, x, y, tree->root, max_height, 0);
-}
-
-LineNode *find_offset_parent_node(LineTree *tree, u64 *byte_offset) {
-  assert(byte_offset);
-
-  u64 last_byte_offset = 0; 
-  u64 current_byte_offset = *byte_offset;
-  
-  LineNode *parent = 0;
-  LineNode *current = tree->root;
-
-  while(current != 0) {
-    last_byte_offset = current_byte_offset;
-    parent = current;
-    if(current_byte_offset > current->total_bytes) {
-      current_byte_offset -= current->total_bytes;
-      current = current->r;
-    } else {
-      current = current->l;
-    }
-  }
-  
-  *byte_offset = last_byte_offset;
-
-  return parent;
-}
-
-void line_tree_propagate_change_at_byte(LineTree *tree, u64 byte_offset, s64 delta) {
-  bool left;
-  LineNode *parent = find_offset_parent_node(tree, &byte_offset);
-  
-  if(!parent) {
-    return;
-  }
-  
-  if (byte_offset > parent->total_bytes) {
-    propagate_change(parent, delta, 0);
-  } else {
-    parent->total_bytes += delta;
-    propagate_change(parent, delta, 0);
-  }
 }

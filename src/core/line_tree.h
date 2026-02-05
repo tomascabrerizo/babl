@@ -22,13 +22,7 @@ struct LineTree {
 
 void line_tree_insert(LineTree *tree, u64 byte_offset);
 
-bool line_tree_delete(LineNode **tree, u64 byte_offset);
-
-bool line_tree_get_line(LineNode **tree, u32 line_number, u64 *byte_offset, u64 *line_size);
-
-LineNode *line_tree_next_line(LineNode *line);
-
-LineNode *line_tree_prev_line(LineNode *line);
+bool line_tree_delete(LineTree *tree, u64 byte_offset);
 
 void line_tree_draw(s32 x, s32 y, struct RenderFont *font, LineTree *tree);
 

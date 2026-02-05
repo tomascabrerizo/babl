@@ -25,6 +25,45 @@ static void propagate_decrement(LineNode *node, u64 bytes, u32 lines) {
   } 
 }
 
+static LineNode *line_tree_minimun(LineNode *x) {
+  while(x->l) {
+    x = x->l;
+  } 
+  return x;
+}
+
+static LineNode *line_tree_maximum(LineNode *x) {
+  while(x->r) {
+    x = x->r;
+  } 
+  return x;
+}
+
+static LineNode *line_tree_successor(LineNode *x) {
+  if(x->r) {
+    return line_tree_minimun(x->r);
+  } 
+  LineNode *y = x->p;
+  while(y != 0 && x == y->r) {
+    x = y;
+    y = y->p;
+  }
+  return y;
+}
+
+static void line_tree_transplant(LineTree *tree, LineNode *u, LineNode *v) {
+  if(u->p == 0) {
+    tree->root = v;
+  } else if(u == u->p->l) {
+    u->p->l = v;
+  } else {
+    u->p->r = v;
+  }
+  if(v != 0) {
+    v->p = u->p;
+  }
+}
+
 void line_tree_insert(LineTree *tree, u64 byte_offset) {
   
   LineNode *node = (LineNode *)malloc(sizeof(*node));
@@ -65,20 +104,56 @@ void line_tree_insert(LineTree *tree, u64 byte_offset) {
 
 }
 
-bool line_tree_delete(LineNode **tree, u64 byte_offset) {
-  return false;
-}
+static LineNode *find_node_at_offset(LineTree *tree, u64 byte_offset) {
+  u64 last_byte_offset = 0; 
+  
+  LineNode *current = tree->root;
+  LineNode *parent = 0;
 
-bool line_tree_get_line(LineNode **tree, u32 line_number, u64 *byte_offset, u64 *line_size) {
-  return false;
-}
+  while(current) {
+    last_byte_offset = byte_offset;
+    parent = current;
+    if(byte_offset > current->byte_offset) {
+      byte_offset -= current->byte_offset;
+      current = current->r;
+    } else {
+      current = current->l;
+    }
+  }
 
-LineNode *line_tree_next_line(LineNode *line) {
+  if(parent && last_byte_offset == parent->byte_offset) {
+    return parent;
+  }
+  
   return 0;
 }
 
-LineNode *line_tree_prev_line(LineNode *line) {
-  return 0;
+bool line_tree_delete(LineTree *tree, u64 byte_offset) {
+  LineNode *z= find_node_at_offset(tree, byte_offset);
+  if(z == 0) {
+    return false;
+  }
+  
+  if(z->l == 0) {
+    line_tree_transplant(tree, z, z->r);
+    if(z->r) {
+      z->r->byte_offset += z->byte_offset - 1;
+    }
+  } else if(z->r == 0) {
+    line_tree_transplant(tree, z, z->l);
+  } else {
+    LineNode *y = line_tree_minimun(z->r);
+    if(y->p) {
+      line_tree_transplant(tree, y, y->r);
+      y->r = z->r;
+      y->r->p = y;
+    }
+    line_tree_transplant(tree, z, y);
+    y->l = z->l;
+    y->l->p = y;
+  } 
+
+  return true;
 }
 
 LineNode *find_offset_parent_node(LineTree *tree, u64 *byte_offset) {
@@ -156,7 +231,7 @@ static void line_tree_node_draw(struct RenderFont *font, s32 x, s32 y,
     return;
   } 
 
-  s32 offset_x = (1 << (max_height - depth)) * (dim * 0.75f);
+  s32 offset_x = (1 << (max_height - depth)) * (dim * 0.75f) / 2.0f;
   s32 offset_y = dim * 2.0f;
 
   render_line(x, y, x-offset_x, y+offset_y, 0xffffff);

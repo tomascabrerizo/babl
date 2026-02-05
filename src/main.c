@@ -224,8 +224,17 @@ int main(void) {
 					if(event.key.code == OS_KEY_BACKSPACE) {
 						if(cursor_move_left(&cursor, text)) {
 							u64 index = cursor_get_index(&cursor, text);
-							text_buffer_delete(text, index);
-              line_tree_propagate_decrement_at_byte(&tree, index, 1);
+              u32 code = text_buffer_get(text, index);
+              
+              if(code == (u32)'\n') {
+                assert(line_tree_delete(&tree, index));
+                // TODO: maybe we can always decrement
+                //line_tree_propagate_decrement_at_byte(&tree, index, 1);
+              } else {
+                line_tree_propagate_decrement_at_byte(&tree, index, 1);
+              }
+              
+              text_buffer_delete(text, index);
 						}
 					}	
 					if(event.key.code == OS_KEY_RIGHT) {

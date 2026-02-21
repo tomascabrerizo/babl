@@ -105,14 +105,9 @@ void line_tree_insert(LineTree *tree, u64 byte_offset) {
 }
 
 static LineNode *find_node_at_offset(LineTree *tree, u64 byte_offset) {
-  u64 last_byte_offset = 0; 
   
   LineNode *current = tree->root;
-  LineNode *parent = 0;
-
-  while(current) {
-    last_byte_offset = byte_offset;
-    parent = current;
+  while(current && byte_offset != current->byte_offset) {
     if(byte_offset > current->byte_offset) {
       byte_offset -= current->byte_offset;
       current = current->r;
@@ -120,12 +115,8 @@ static LineNode *find_node_at_offset(LineTree *tree, u64 byte_offset) {
       current = current->l;
     }
   }
-
-  if(parent && last_byte_offset == parent->byte_offset) {
-    return parent;
-  }
   
-  return 0;
+  return current;
 }
 
 bool line_tree_delete(LineTree *tree, u64 byte_offset) {
@@ -137,20 +128,23 @@ bool line_tree_delete(LineTree *tree, u64 byte_offset) {
   if(z->l == 0) {
     line_tree_transplant(tree, z, z->r);
     if(z->r) {
-      z->r->byte_offset += z->byte_offset - 1;
+      z->r->byte_offset += z->byte_offset;
     }
   } else if(z->r == 0) {
     line_tree_transplant(tree, z, z->l);
   } else {
     LineNode *y = line_tree_minimun(z->r);
-    if(y->p) {
+    if(y->p != z) {
       line_tree_transplant(tree, y, y->r);
       y->r = z->r;
       y->r->p = y;
+      assert(y->byte_offset < y->r->byte_offset);
+      y->r->byte_offset -= y->byte_offset;
     }
     line_tree_transplant(tree, z, y);
     y->l = z->l;
     y->l->p = y;
+    y->byte_offset += z->byte_offset;
   } 
 
   return true;

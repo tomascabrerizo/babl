@@ -210,16 +210,16 @@ int main(void) {
 					for(u32 i = 0; i < event.text.size; i++) {
 						u64 index = cursor_get_index(&cursor, text);
 						text_buffer_insert(text, index, (u32)event.text.data[i]);
-						cursor_move_right(&cursor, text);
             line_tree_propagate_increment_at_byte(&tree, index, 1);
+						cursor_move_right(&cursor, text);
 					}
 				} break;
 				case OS_EVENT_KEYDOWN: {
 					if(event.key.code == OS_KEY_ENTER) {
 						u64 index = cursor_get_index(&cursor, text);
 						text_buffer_insert(text, index, (u32)'\n');
-						cursor_move_right(&cursor, text);
             line_tree_insert(&tree, index);
+						cursor_move_right(&cursor, text);
 					}	
 					if(event.key.code == OS_KEY_BACKSPACE) {
 						if(cursor_move_left(&cursor, text)) {
@@ -229,8 +229,9 @@ int main(void) {
               
               if(code == (u32)'\n') {
                 assert(line_tree_delete(&tree, index));
+              } else {
+                line_tree_propagate_decrement_at_byte(&tree, index, 1);
               } 
-              line_tree_propagate_decrement_at_byte(&tree, index, 1);
 						
             }
 					}	

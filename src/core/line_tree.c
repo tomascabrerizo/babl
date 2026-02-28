@@ -82,6 +82,9 @@ void line_tree_insert(LineTree *tree, u64 byte_offset) {
       byte_offset -= current->byte_offset;
       current = current->r;
     } else {
+      current->total_lines += 1;
+      // TODO: on windows newlines are probably 2 bytes long
+      current->byte_offset += 1;
       current = current->l;
     }
   }
@@ -98,37 +101,51 @@ void line_tree_insert(LineTree *tree, u64 byte_offset) {
     } else  {
       parent->l = node;
     }
-    
-    propagate_increment(node, 1, 1);
   }
 
 }
 
-static LineNode *find_node_at_offset(LineTree *tree, u64 byte_offset) {
+// NOTE: this function can only be call using a byteoffset that actualy contains a new line
+bool line_tree_delete(LineTree *tree, u64 byte_offset) {
   
+  u64 saved_byte_offset = byte_offset;
+
+  // NOTE: since we are going to delete a node we update all parents nodes
   LineNode *current = tree->root;
   while(current && byte_offset != current->byte_offset) {
     if(byte_offset > current->byte_offset) {
       byte_offset -= current->byte_offset;
       current = current->r;
     } else {
+      assert(current->total_lines > 0);
+      assert(current->byte_offset > 0);
+      current->total_lines -= 1;
+      // TODO: on windows newlines are probably 2 bytes long
+      current->byte_offset -= 1;
       current = current->l;
     }
   }
-  
-  return current;
-}
 
-bool line_tree_delete(LineTree *tree, u64 byte_offset) {
-  LineNode *z= find_node_at_offset(tree, byte_offset);
-  if(z == 0) {
-    return false;
+  if(current == 0) {
+    printf("there are not new line at: %lu\n", saved_byte_offset);
   }
-  
+  assert(current != 0);
+
+  LineNode *z = current;
   if(z->l == 0) {
     line_tree_transplant(tree, z, z->r);
     if(z->r) {
       z->r->byte_offset += z->byte_offset;
+      assert(z->r->byte_offset > 0);
+      z->r->byte_offset--;
+
+      LineNode *child = z->r->l;
+      while(child) {
+        assert(child->byte_offset > 0);
+        child->byte_offset--;
+        child = child->l;
+      }
+
     }
   } else if(z->r == 0) {
     line_tree_transplant(tree, z, z->l);
@@ -144,7 +161,11 @@ bool line_tree_delete(LineTree *tree, u64 byte_offset) {
     line_tree_transplant(tree, z, y);
     y->l = z->l;
     y->l->p = y;
+    y->total_lines = z->total_lines;
+    
     y->byte_offset += z->byte_offset;
+    assert(y->byte_offset > 0);
+    y->byte_offset--;
   } 
 
   return true;

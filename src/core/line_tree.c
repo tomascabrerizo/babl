@@ -64,6 +64,60 @@ static void line_tree_transplant(LineTree *tree, LineNode *u, LineNode *v) {
   }
 }
 
+static void line_tree_left_rotate(LineTree *tree, LineNode *x) {
+  assert(x != 0 && x->r != 0);
+  LineNode *y = x->r;
+  
+  x->r = y->l;
+  if(y->l != 0) {
+    y->l->p = x;
+  }
+  
+  y->p = x->p;
+  
+  if(x->p == 0) {
+    tree->root = y;
+  } else if(x == x->p->l) {
+    x->p->l = y;
+  } else {
+    x->p->r = y;
+  }
+
+  y->l = x;
+  x->p = y;
+
+  y->byte_offset += x->byte_offset;
+  y->total_lines += x->total_lines;
+}
+
+static void line_tree_right_rotate(LineTree *tree, LineNode *x) {
+  assert(x != 0 && x->l != 0);
+  LineNode *y = x->l;
+
+  x->l = y->r;
+  if(y->r != 0) {
+    y->r->p = x;
+  }
+  
+  y->p = x->p;
+
+  if(x->p == 0) {
+    tree->root = y;
+  } else if(x == x->p->r) {
+    x->p->r = y;
+  } else {
+    x->p->l = y;
+  }
+
+  y->r = x;
+  x->p = y;
+
+  assert(y->byte_offset >= x->byte_offset);
+  assert(y->total_lines >= x->total_lines);
+  x->byte_offset -= y->byte_offset;
+  x->total_lines -= y->total_lines;
+}
+
 void line_tree_insert(LineTree *tree, u64 byte_offset) {
   
   LineNode *node = (LineNode *)malloc(sizeof(*node));
@@ -174,6 +228,8 @@ bool line_tree_delete(LineTree *tree, u64 byte_offset) {
     assert(y->byte_offset > 0);
     y->byte_offset--;
   } 
+  
+  free(z);
 
   return true;
 }

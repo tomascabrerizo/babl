@@ -126,9 +126,6 @@ bool line_tree_delete(LineTree *tree, u64 byte_offset) {
     }
   }
 
-  if(current == 0) {
-    printf("there are not new line at: %lu\n", saved_byte_offset);
-  }
   assert(current != 0);
 
   LineNode *z = current;
@@ -141,6 +138,7 @@ bool line_tree_delete(LineTree *tree, u64 byte_offset) {
 
       LineNode *child = z->r->l;
       while(child) {
+        child->byte_offset += z->byte_offset;
         assert(child->byte_offset > 0);
         child->byte_offset--;
         child = child->l;
@@ -152,12 +150,21 @@ bool line_tree_delete(LineTree *tree, u64 byte_offset) {
   } else {
     LineNode *y = line_tree_minimun(z->r);
     if(y->p != z) {
+      
+      LineNode *parent = y->p;
+      while(parent != z) {
+        assert(parent->byte_offset >= y->byte_offset);
+        assert(parent->total_lines >= y->total_lines);
+        parent->byte_offset -= y->byte_offset;
+        parent->total_lines -= y->total_lines;
+        parent = parent->p;
+      }
+
       line_tree_transplant(tree, y, y->r);
       y->r = z->r;
       y->r->p = y;
-      assert(y->byte_offset < y->r->byte_offset);
-      y->r->byte_offset -= y->byte_offset;
     }
+    
     line_tree_transplant(tree, z, y);
     y->l = z->l;
     y->l->p = y;
@@ -235,6 +242,7 @@ static u32 line_tree_node_height(LineNode *node) {
   return 1 + max(l, r);
 }
 
+#if 0
 static void line_tree_node_draw(struct RenderFont *font, s32 x, s32 y,
                                 LineNode *node, u32 max_height, u32 depth) {
 
@@ -265,3 +273,68 @@ void line_tree_draw(s32 x, s32 y, struct RenderFont *font, LineTree *tree) {
   u32 max_height = line_tree_node_height(tree->root);
   line_tree_node_draw(font, x, y, tree->root, max_height, 0);
 }
+
+#else
+
+static void line_tree_node_draw(struct RenderFont *font, s32 base_x, s32 y, 
+                                LineNode *node, u64 abs_line, u32 depth) {
+  if (!node) return;
+  
+  if (depth > 200) return; 
+
+  u32 dim = 40;
+  u32 half = dim / 2;
+  
+  s32 h_spacing = dim + 20; 
+  s32 offset_y = dim * 2;
+
+  s32 current_x = base_x + (abs_line * h_spacing);
+
+  if (node->l) {
+    u64 left_abs_line = abs_line - node->total_lines + node->l->total_lines;
+    s32 left_x = base_x + (left_abs_line * h_spacing);
+    render_line(current_x, y, left_x, y + offset_y, 0xffffff);
+  } else {
+    s32 null_x = current_x - (h_spacing / 2);
+    render_line(current_x, y, null_x, y + offset_y, 0xffffff);
+    render_rect(null_x - half/2, y + offset_y - half/2, half, half, 0xffffff);
+  }
+
+  if (node->r) {
+    u64 right_abs_line = abs_line + node->r->total_lines;
+    s32 right_x = base_x + (right_abs_line * h_spacing);
+    render_line(current_x, y, right_x, y + offset_y, 0xffffff);
+  } else {
+    s32 null_x = current_x + (h_spacing / 2);
+    render_line(current_x, y, null_x, y + offset_y, 0xffffff);
+    render_rect(null_x - half/2, y + offset_y - half/2, half, half, 0xffffff);
+  }
+
+  render_rect(current_x - half, y - half, dim, dim, 0xff0000);
+  static char text[1024];
+  sprintf(text, "%llu|%u", (unsigned long long)node->byte_offset, node->total_lines);
+  render_text(font, text, current_x - half, y, 0xffffff, 0xff0000);
+
+  if (node->l) {
+    u64 left_abs_line = abs_line - node->total_lines + node->l->total_lines;
+    line_tree_node_draw(font, base_x, y + offset_y, node->l, left_abs_line, depth + 1);
+  }
+  if (node->r) {
+    u64 right_abs_line = abs_line + node->r->total_lines;
+    line_tree_node_draw(font, base_x, y + offset_y, node->r, right_abs_line, depth + 1);
+  }
+}
+
+void line_tree_draw(s32 start_x, s32 y, struct RenderFont *font, LineTree *tree) {
+  if (!tree->root) return;
+  
+  s32 h_spacing = 60; // Needs to match the spacing in the node_draw function
+  u64 root_abs_line = tree->root->total_lines;
+  
+  s32 base_x = start_x - (root_abs_line * h_spacing);
+
+  line_tree_node_draw(font, base_x, y, tree->root, root_abs_line, 0);
+}
+
+#endif
+

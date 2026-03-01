@@ -112,8 +112,8 @@ static void line_tree_right_rotate(LineTree *tree, LineNode *x) {
   y->r = x;
   x->p = y;
 
-  assert(y->byte_offset >= x->byte_offset);
-  assert(y->total_lines >= x->total_lines);
+  assert(x->byte_offset > y->byte_offset);
+  assert(x->total_lines > y->total_lines);
   x->byte_offset -= y->byte_offset;
   x->total_lines -= y->total_lines;
 }

@@ -192,6 +192,7 @@ int main(void) {
 	TextBuffer text = text_buffer_create();
 
   LineTree tree;
+  line_tree_init(&tree);
 
 	bool running = true;
 	while(running) {

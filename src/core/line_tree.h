@@ -5,6 +5,12 @@
 
 struct RenderFont;
 
+typedef enum LineNodeColor LineNodeColor;
+enum LineNodeColor {
+  LINE_NODE_BLACK,
+  LINE_NODE_RED,
+};
+
 typedef struct LineNode LineNode;
 struct LineNode {
 	LineNode *l;
@@ -13,12 +19,19 @@ struct LineNode {
 
 	u64 byte_offset;
 	u32 total_lines;
+
+  LineNodeColor color;
 };
 
 typedef struct LineTree LineTree;
 struct LineTree {
   LineNode *root;
+  LineNode *nil;
+
+  LineNode nil_node;
 };
+
+void line_tree_init(LineTree *tree);
 
 void line_tree_insert(LineTree *tree, u64 byte_offset);
 

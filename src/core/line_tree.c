@@ -117,7 +117,12 @@ static void line_tree_right_rotate(LineTree *tree, LineNode *x) {
 void line_tree_init(LineTree *tree) {
   memset(&tree->nil_node, 0, sizeof(tree->nil_node));
   tree->nil_node.color = LINE_NODE_BLACK;
+  
   tree->nil = &tree->nil_node;
+  tree->nil->l = tree->nil;
+  tree->nil->r = tree->nil;
+  tree->nil->p = tree->nil;
+
   tree->root = tree->nil;
 }
 

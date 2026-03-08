@@ -194,6 +194,21 @@ int main(void) {
   LineTree tree;
   line_tree_init(&tree);
 
+// NOTE: loading test
+
+  // OsFile file = os_read_file("./src/core/line_tree.h");
+  OsFile file = os_read_file("./test.txt");
+  for(u64 i = 0;  i < file.size; i++) {
+    text_buffer_insert(text, i, (u32)file.data[i]);
+    if(file.data[i] == '\n') {
+      line_tree_insert(&tree, i);
+    } else {
+      line_tree_propagate_increment_at_byte(&tree, i, 1);
+    }
+  }
+
+//////////////////////////////
+
 	bool running = true;
 	while(running) {
 		os_frame_begin();

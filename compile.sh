@@ -2,5 +2,7 @@
 
 mkdir -p ./build
 
-clang -g -O0 src/main.c -o ./build/babl -I/usr/include/freetype2 -lfreetype -lSDL2
+# clang -g -O0 src/main.c -o ./build/babl -I/usr/include/freetype2 -lfreetype -lSDL2
+
+clang -g -O0 src/sdl2_main.c src/babl.c -o ./build/babl -I/usr/include/freetype2 -lfreetype -lSDL2
 

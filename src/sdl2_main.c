@@ -99,15 +99,13 @@ void sdl2_update_texture_u32(BablTextureU32 *texture, BablRect *dst, u32 *pixels
     offset_x = ur.left - dst->left;
     offset_y = ur.top - dst->top;
   }
-  u32 src_y = offset_y; 
-  u32 dst_y = ur.top;
-  u32 bytes_to_copy = babl_rect_width(ur) * sizeof(u32);
-  while(dst_y < ur.bottom) {
-    u32 *src_ptr = pixels + src_y * stride + offset_x; 
-    u32 *dst_ptr = texture->pixels + dst_y * texture->width + ur.left;
-    memcpy(dst_ptr, src_ptr, bytes_to_copy);
-    src_y++;
-    dst_y++;
+  u32 *src_row = pixels + offset_y * stride + offset_x;
+  u32 *dst_row = texture->pixels + ur.top * texture->width + ur.left;
+  u32 bytes_to_copy = babl_rect_width(ur) * sizeof(*texture->pixels);
+  for(u32 y = ur.top; y < ur.bottom; ++y) {
+    memcpy(dst_row, src_row, bytes_to_copy);
+    src_row += stride;
+    dst_row += texture->width;
   }
 }
 
@@ -117,20 +115,16 @@ void sdl2_draw_texture_u32(BablTextureU32 *texture, BablRect *src, BablRect *dst
   ur.top = 0;
   ur.right = backbuffer_w;
   ur.bottom = backbuffer_h;
-  ur = babl_rect_intersection(ur, clipping);
-  s32 dst_offset_x = 0;
-  s32 dst_offset_y = 0;
-  u32 dst_w = backbuffer_w; 
-  u32 dst_h = backbuffer_h; 
+  BablRect actual_dst = ur;
   if(dst != NULL) {
-    dst_w = babl_rect_width(*dst);
-    dst_h = babl_rect_height(*dst);
-    ur = babl_rect_intersection(ur, *dst);
-    dst_offset_x = ur.left - dst->left;
-    dst_offset_y = ur.top - dst->top;
+    actual_dst = *dst;
   }
-  u32 ur_w = babl_rect_width(ur);
-  u32 ur_h = babl_rect_height(ur);
+  u32 dst_w = babl_rect_width(actual_dst);
+  u32 dst_h = babl_rect_height(actual_dst);
+  ur = babl_rect_intersection(ur, clipping);
+  ur = babl_rect_intersection(ur, actual_dst);
+  s32 offset_x = ur.left - actual_dst.left;
+  s32 offset_y = ur.top - actual_dst.top;
   BablRect tr;
   tr.left = 0;
   tr.top = 0;
@@ -139,38 +133,26 @@ void sdl2_draw_texture_u32(BablTextureU32 *texture, BablRect *src, BablRect *dst
   if(src != NULL) {
     tr = babl_rect_intersection(tr, *src);
   }
-  u32 tr_w = babl_rect_width(tr);
-  u32 tr_h = babl_rect_height(tr);
-  if(dst_w == 0 || dst_h == 0 || ur_w == 0 || ur_h == 0 || tr_w == 0 || tr_h == 0) {
+  u32 src_w = babl_rect_width(tr);
+  u32 src_h = babl_rect_height(tr);
+  if(dst_w == 0 || dst_h == 0) {
     return;
   }
-  u32 src_step_x = (tr_w << 16) / dst_w;
-  u32 src_step_y = (tr_h << 16) / dst_h;
-  u32 fixed_src_y = (tr.top << 16) + (dst_offset_y * src_step_y) + 0x8000;
-  u32 start_fixed_src_x = (tr.left << 16) + (dst_offset_x * src_step_x) + 0x8000;
-  u32 dst_y = ur.top;
-  for(u32 y = 0; y < ur_h; ++y) {
-    u32 *dst_ptr = (u32 *)backbuffer + dst_y * backbuffer_w + ur.left;
-    u32 src_y = fixed_src_y >> 16;
-    u32 *src_row_ptr = texture->pixels + (src_y * texture->width);
-    u32 fixed_src_x = start_fixed_src_x;
-    for(u32 x = 0; x < ur_w; ++x) {
-      u32 src_x = fixed_src_x >> 16;
-      u32 *src_ptr = src_row_ptr + src_x;
+  u32 src_step_x_fixed = (src_w << 16) / dst_w;
+  u32 src_step_y_fixed = (src_h << 16) / dst_h;
+  u32 src_row_fixed = (tr.top << 16) + (offset_y * src_step_y_fixed);
+  u32 src_start_x_fixed = (tr.left << 16) + (offset_x * src_step_x_fixed);
+  u32 dst_row = ur.top;
+  u32 dst_start_x = ur.left;
+  for(u32 y = ur.top; y < ur.bottom; ++y) {
+    u32 src_x_fixed = src_start_x_fixed;
+    u32 *src_y_ptr = texture->pixels + (src_row_fixed >> 16) * texture->width;
+    u32 *dst_ptr = (u32 *)backbuffer + dst_row * backbuffer_w + dst_start_x;
+    for(u32 x = ur.left; x < ur.right; ++x) {
+      u32 *src_ptr = src_y_ptr + (src_x_fixed >> 16);
       u32 s = *src_ptr;
       u32 d = *dst_ptr;
       u32 a = (s >> 24) & 0xff;
-      if(a == 0) {
-        dst_ptr++;
-        fixed_src_x += src_step_x;
-        continue;
-      }
-      if(a == 255) {
-        *dst_ptr = s;
-        dst_ptr++;
-        fixed_src_x += src_step_x;
-        continue;
-      }
       u32 src_r = (s >> 16) & 0xff;
       u32 src_g = (s >> 8) & 0xff;
       u32 src_b = (s >> 0) & 0xff;
@@ -181,26 +163,116 @@ void sdl2_draw_texture_u32(BablTextureU32 *texture, BablRect *src, BablRect *dst
 			u32 r = (dst_r * inv + src_r * a) >> 8;
 			u32 g = (dst_g * inv + src_g * a) >> 8;
 			u32 b = (dst_b * inv + src_b * a) >> 8;
-			u32 color = (0xff << 24) | (r << 16) | (g << 8) | b;
-			*dst_ptr++ = color;
-      fixed_src_x += src_step_x;
+			*dst_ptr++ = (0xff << 24) | (r << 16) | (g << 8) | b;
+      src_x_fixed += src_step_x_fixed;
     }
-    dst_y++;
-    fixed_src_y += src_step_y;
+    dst_row++;
+    src_row_fixed += src_step_y_fixed;
   }
 }
 
+struct BablTextureU8 {
+  u8 *pixels;
+  u32 width;
+  u32 height;
+};
+
 BablTextureU8 *sdl2_load_texture_u8(u32 width, u32 height, u8 *pixels) {
-  return 0;
+  BablTextureU8 *texture = malloc(sizeof(*texture) + width * height * sizeof(*pixels));
+  assert(texture);
+  texture->pixels = (u8 *)(texture + 1);
+  texture->width = width;
+  texture->height = height;
+  memcpy(texture->pixels, pixels, width * height * sizeof(*pixels));
+  return texture;
 }
 
 void sdl2_unload_texture_u8(BablTextureU8 *texture) {
+  free(texture);
 }
 
 void sdl2_update_texture_u8(BablTextureU8 *texture, BablRect *dst, u8 *pixels, s32 stride) {
+  BablRect ur;
+  ur.left = 0;
+  ur.top = 0;
+  ur.right = texture->width;
+  ur.bottom = texture->height;
+  s32 offset_x = 0;
+  s32 offset_y = 0;
+  if(dst != NULL) {
+    ur = babl_rect_intersection(ur, *dst);
+    offset_x = ur.left - dst->left;
+    offset_y = ur.top - dst->top;
+  }
+  u8 *src_row = pixels + offset_y * stride + offset_x;
+  u8 *dst_row = texture->pixels + ur.top * texture->width + ur.left;
+  u32 bytes_to_copy = babl_rect_width(ur) * sizeof(*texture->pixels);
+  for(u32 y = ur.top; y < ur.bottom; ++y) {
+    memcpy(dst_row, src_row, bytes_to_copy);
+    src_row += stride;
+    dst_row += texture->width;
+  }
 }
 
 void sdl2_draw_texture_u8(BablTextureU8 *texture, BablRect *src, BablRect *dst, u32 color) {
+  BablRect ur;
+  ur.left = 0;
+  ur.top = 0;
+  ur.right = backbuffer_w;
+  ur.bottom = backbuffer_h;
+  BablRect actual_dst = ur;
+  if(dst != NULL) {
+    actual_dst = *dst;
+  }
+  u32 dst_w = babl_rect_width(actual_dst);
+  u32 dst_h = babl_rect_height(actual_dst);
+  ur = babl_rect_intersection(ur, clipping);
+  ur = babl_rect_intersection(ur, actual_dst);
+  s32 offset_x = ur.left - actual_dst.left;
+  s32 offset_y = ur.top - actual_dst.top;
+  BablRect tr;
+  tr.left = 0;
+  tr.top = 0;
+  tr.right = texture->width;
+  tr.bottom = texture->height;
+  if(src != NULL) {
+    tr = babl_rect_intersection(tr, *src);
+  }
+  u32 src_w = babl_rect_width(tr);
+  u32 src_h = babl_rect_height(tr);
+  if(dst_w == 0 || dst_h == 0) {
+    return;
+  }
+  u32 src_step_x_fixed = (src_w << 16) / dst_w;
+  u32 src_step_y_fixed = (src_h << 16) / dst_h;
+  u32 src_row_fixed = (tr.top << 16) + (offset_y * src_step_y_fixed);
+  u32 src_start_x_fixed = (tr.left << 16) + (offset_x * src_step_x_fixed);
+  u32 dst_row = ur.top;
+  u32 dst_start_x = ur.left;
+  u32 src_r = (color >> 16) & 0xff;
+  u32 src_g = (color >> 8) & 0xff;
+  u32 src_b = (color >> 0) & 0xff;
+  for(u32 y = ur.top; y < ur.bottom; ++y) {
+    u32 src_x_fixed = src_start_x_fixed;
+    u8 *src_y_ptr = texture->pixels + (src_row_fixed >> 16) * texture->width;
+    u32 *dst_ptr = (u32 *)backbuffer + dst_row * backbuffer_w + dst_start_x;
+    for(u32 x = ur.left; x < ur.right; ++x) {
+      u8 *src_ptr = src_y_ptr + (src_x_fixed >> 16);
+      u32 a = (u32)*src_ptr;
+      u32 d = *dst_ptr;
+      u32 dst_r = (d >> 16) & 0xff;
+      u32 dst_g = (d >> 8) & 0xff;
+      u32 dst_b = (d >> 0) & 0xff;
+			u32 inv = 255 - a;
+      u32 r = (dst_r * inv + src_r * a) >> 8;
+			u32 g = (dst_g * inv + src_g * a) >> 8;
+			u32 b = (dst_b * inv + src_b * a) >> 8;
+			*dst_ptr++ = (0xff << 24) | (r << 16) | (g << 8) | b;
+      src_x_fixed += src_step_x_fixed;
+    }
+    dst_row++;
+    src_row_fixed += src_step_y_fixed;
+  }
 }
 
 int main(int argc, char **argv) {
@@ -282,9 +354,7 @@ int main(int argc, char **argv) {
   sdl2_render_api.draw_texture_u8= sdl2_draw_texture_u8;
   
   BablCtx babl;
-  memset(&babl, 0, sizeof(babl));
-  babl.is_running = true;
-  babl.render = sdl2_render_api;
+  babl_init(&babl, sdl2_render_api);
 
   for(;babl.is_running;) {
 

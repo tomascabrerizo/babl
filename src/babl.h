@@ -151,6 +151,7 @@ struct BablCtx {
   u32 event_queue_size;
 };
 
+void babl_init(BablCtx *ctx, BablRenderer render);
 bool babl_push_event(BablCtx *ctx, BablEvent event);
 void babl_update_and_render(BablCtx *ctx);
 

@@ -1,5 +1,7 @@
 #include "babl.h"
 
+#include <string.h>
+
 BablRect babl_rect_intersection(BablRect a, BablRect b) {
   BablRect r;
   r.left = max(a.left, b.left);
@@ -44,6 +46,12 @@ bool babl_push_event(BablCtx *ctx, BablEvent event) {
   }
   ctx->event_queue[ctx->event_queue_size++] = event;
   return true;
+}
+
+void babl_init(BablCtx *ctx, BablRenderer render) {
+  memset(ctx, 0, sizeof(*ctx));
+  ctx->render = render;
+  ctx->is_running = true;
 }
 
 void babl_update_and_render(BablCtx *ctx) {
